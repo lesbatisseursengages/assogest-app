@@ -1,113 +1,68 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { trpc } from "@/lib/trpc";
 
 const SESSION_KEY = "app_session_token";
-const USERS_STORAGE_KEY = "batisseurs_users";
-
-// Utilisateurs par défaut
-const DEFAULT_USERS = [
-  {
-    id: 1,
-    email: "admin@batisseurs-engages.fr",
-    password: "Admin123!",
-    fullName: "Administrateur",
-    role: "admin" as const,
-    isActive: true,
-    createdAt: new Date("2025-01-01").toISOString(),
-  },
-  {
-    id: 2,
-    email: "marie.dupont@batisseurs-engages.fr",
-    password: "Marie123!",
-    fullName: "Marie Dupont",
-    role: "membre" as const,
-    isActive: true,
-    createdAt: new Date("2025-01-15").toISOString(),
-  },
-];
+const USER_EMAIL_KEY = "current_user_email";
 
 export function usePasswordAuth() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const meQuery = trpc.auth.me.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
+  const localLoginMutation = trpc.auth.localLogin.useMutation();
+  const logoutMutation = trpc.auth.logout.useMutation();
 
-  // Charger les utilisateurs depuis localStorage ou utiliser les valeurs par défaut
-  const getUsers = () => {
-    const saved = localStorage.getItem(USERS_STORAGE_KEY);
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return DEFAULT_USERS;
-      }
-    }
-    return DEFAULT_USERS;
-  };
-
-  // Vérifier l'authentification au chargement
   useEffect(() => {
-    const token = sessionStorage.getItem(SESSION_KEY);
-    const userEmail = sessionStorage.getItem("current_user_email");
-    if (token && userEmail) {
-      const users = getUsers();
-      const user = users.find((u: any) => u.email === userEmail);
-      if (user) {
-        setCurrentUser(user);
-        setIsAuthenticated(true);
-      }
+    if (meQuery.isLoading) return;
+    if (meQuery.data) {
+      const user = { ...meQuery.data, isActive: true };
+      setCurrentUser(user);
+      setIsAuthenticated(true);
+      sessionStorage.setItem(SESSION_KEY, "server-session");
+      sessionStorage.setItem(USER_EMAIL_KEY, user.email ?? "");
     }
     setIsLoading(false);
-  }, []);
+  }, [meQuery.data, meQuery.isLoading]);
 
-  // Fonction de connexion
-  const login = (email: string, password: string): boolean => {
+  const login = useCallback(async (email: string, password: string) => {
     setError(null);
-    
     if (!email || !password) {
       setError("Veuillez entrer votre email et votre mot de passe");
       return false;
     }
-
-    // Valider le format de l'email
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      setError("Veuillez entrer une adresse email valide");
-      return false;
-    }
-
-    const users = getUsers();
-    const user = users.find((u: any) => u.email === email);
-
-    if (user && user.password === password) {
-      if (!user.isActive) {
-        setError("Ce compte est désactivé. Contactez l'administrateur.");
-        return false;
-      }
-      
-      const token = Math.random().toString(36).substring(2);
-      sessionStorage.setItem(SESSION_KEY, token);
-      sessionStorage.setItem("current_user_email", email);
+    try {
+      const result = await localLoginMutation.mutateAsync({ email, password });
+      const user = { ...result.user, email, isActive: true };
+      sessionStorage.setItem(SESSION_KEY, "server-session");
+      sessionStorage.setItem(USER_EMAIL_KEY, email);
       setCurrentUser(user);
       setIsAuthenticated(true);
+      await meQuery.refetch();
       return true;
-    } else {
-      setError("Email ou mot de passe incorrect");
+    } catch (loginError: any) {
+      setError(loginError?.message || "Email ou mot de passe incorrect");
+      setIsAuthenticated(false);
       return false;
     }
-  };
+  }, [localLoginMutation, meQuery]);
 
-  // Fonction de déconnexion
-  const logout = () => {
-    sessionStorage.removeItem(SESSION_KEY);
-    sessionStorage.removeItem("current_user_email");
-    setIsAuthenticated(false);
-    setError(null);
-    setCurrentUser(null);
-  };
+  const logout = useCallback(async () => {
+    try {
+      await logoutMutation.mutateAsync();
+    } finally {
+      sessionStorage.removeItem(SESSION_KEY);
+      sessionStorage.removeItem(USER_EMAIL_KEY);
+      setIsAuthenticated(false);
+      setError(null);
+      setCurrentUser(null);
+      await meQuery.refetch();
+    }
+  }, [logoutMutation, meQuery]);
 
   return {
     isAuthenticated,
-    isLoading,
+    isLoading: isLoading || localLoginMutation.isPending || logoutMutation.isPending,
     error,
     currentUser,
     login,

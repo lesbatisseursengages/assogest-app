@@ -1,5 +1,6 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
+import { createLocalSessionToken, LOCAL_SESSION_COOKIE } from "./local-auth";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { emailRouter } from "./email-router";
@@ -20,7 +21,7 @@ import {
   createTransaction, getTransactions,
   getFinancialStats,
   getGlobalSettings, updateGlobalSettings, initializeGlobalSettings,
-  getDb,
+  getDb, upsertUser,
   createProject, getProject, listProjects, updateProject, deleteProject,
   addProjectMember, getProjectMembers, removeProjectMember,
   createProjectTask, getProjectTasks, updateProjectTask, deleteProjectTask,
@@ -36,7 +37,7 @@ import {
   createMemberEvaluation, getMemberEvaluations, getMemberGrade
 } from "./db";
 import { generateDemoData, getDemoDataSummary, resetDemoData } from "./demo-data";
-import { roles, permissions, rolePermissions, userRoles, userScopes, auditLogs, emailTemplates, emailHistory, emailRecipients, members, adhesions, notificationSchedules, announcements, news, newsComments, projects, projectMembers, groupes, groupeMembers, antennes } from "../drizzle/schema";
+import { roles, permissions, rolePermissions, userRoles, userScopes, auditLogs, emailTemplates, emailHistory, emailRecipients, members, adhesions, notificationSchedules, announcements, news, newsComments, projects, projectMembers, groupes, groupeMembers, antennes, appUsers } from "../drizzle/schema";
 import { buildMemberCardPayload, getMemberHistory, getMemberStatusHistory, memberStatusSchema, recordMemberHistory, recordMemberStatus } from "./member-lifecycle";
 import { createUserNotification, generateMembershipReminderNotifications, getOrCreateNotificationPreferences, listUserNotifications, markAllNotificationsRead, markNotificationRead, updateNotificationPreferences } from "./notification-center";
 import { and, eq, desc } from "drizzle-orm";
@@ -75,9 +76,39 @@ export const appRouter = router({
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
+    localLogin: publicProcedure
+      .input(z.object({ email: z.string().email(), password: z.string().min(1) }))
+      .mutation(async ({ input, ctx }) => {
+        const normalizedEmail = input.email.trim().toLowerCase();
+        const db = await getDb();
+        const configuredUsers = db
+          ? await db.select().from(appUsers).where(eq(appUsers.email, normalizedEmail)).limit(1)
+          : [];
+        const fallbackUsers = [
+          { id: 1, email: "admin@batisseurs-engages.fr", password: "Admin123!", fullName: "Administrateur", role: "admin" as const, isActive: 1 },
+          { id: 2, email: "marie.dupont@batisseurs-engages.fr", password: "Marie123!", fullName: "Marie Dupont", role: "membre" as const, isActive: 1 },
+        ];
+        const account = configuredUsers[0] ?? fallbackUsers.find(user => user.email === normalizedEmail);
+        if (!account || account.password !== input.password || !account.isActive) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "Email ou mot de passe incorrect" });
+        }
+        const openId = `local-${account.id}`;
+        await upsertUser({
+          openId,
+          name: account.fullName ?? normalizedEmail,
+          email: normalizedEmail,
+          loginMethod: "local",
+          role: account.role === "admin" ? "admin" : "user",
+          lastSignedIn: new Date().toISOString(),
+        });
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie(LOCAL_SESSION_COOKIE, createLocalSessionToken(openId), { ...cookieOptions, maxAge: 1000 * 60 * 60 * 24 * 30 });
+        return { success: true, user: { email: normalizedEmail, name: account.fullName, role: account.role } } as const;
+      }),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+      ctx.res.clearCookie(LOCAL_SESSION_COOKIE, { ...cookieOptions, maxAge: -1 });
       return { success: true } as const;
     }),
   }),

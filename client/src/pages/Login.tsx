@@ -6,7 +6,7 @@ import { AlertCircle, Lock, Mail, Sparkles } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface LoginProps {
-  onLogin: (email: string, password: string) => void;
+  onLogin: (email: string, password: string) => void | Promise<unknown>;
   error?: string | null;
   onForgotPassword?: () => void;
 }
@@ -23,7 +23,7 @@ export default function Login({ onLogin, error, onForgotPassword }: LoginProps) 
     // Simuler un délai réseau
     await new Promise(resolve => setTimeout(resolve, 300));
     
-    onLogin(email, password);
+    await onLogin(email, password);
     setIsLoading(false);
   };
 
