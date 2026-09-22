@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRoute } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, CheckCircle2, Clock, AlertCircle, Trash2, MessageCircle, BarChart3, Download, CalendarDays, WalletCards } from "lucide-react";
+import { Plus, CheckCircle2, Clock, AlertCircle, Trash2, MessageCircle, BarChart3, Download, CalendarDays, WalletCards, CloudSun, Droplets, Wind, Umbrella } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 import { Textarea } from "@/components/ui/textarea";
@@ -45,6 +45,11 @@ export function ProjectDetail() {
   // Fetch budget items
   const { data: budgetItems } = trpc.projects.getBudgetItems.useQuery({ projectId });
   const { data: report } = trpc.projects.report.useQuery({ projectId });
+  const weatherInput = useMemo(() => ({ latitude: 12.1348, longitude: 15.0557, label: "N’Djamena, Tchad" }), []);
+  const { data: weather, isLoading: weatherLoading, error: weatherError } = trpc.projects.weather.useQuery(weatherInput, {
+    staleTime: 15 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
   const { data: taskComments, refetch: refetchTaskComments } = trpc.projects.getTaskComments.useQuery(
     { taskId: selectedTaskId ?? 0 },
     { enabled: Boolean(selectedTaskId) },
@@ -240,6 +245,39 @@ export function ProjectDetail() {
             </CardContent>
           </Card>
         </div>
+
+        <Card className="overflow-hidden border-sky-200/70 bg-gradient-to-br from-sky-50 via-card to-amber-50/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base"><CloudSun className="h-5 w-5 text-sky-600" />Météo de la zone d’intervention</CardTitle>
+            <CardDescription>{weather?.location ?? "N’Djamena, Tchad"} · prévisions Open-Meteo sur 7 jours</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {weatherLoading ? (
+              <div className="flex items-center gap-2 py-3 text-sm text-muted-foreground"><CloudSun className="h-4 w-4 animate-pulse" />Chargement des prévisions…</div>
+            ) : weatherError ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">La météo est temporairement indisponible. Les données du projet restent accessibles.</div>
+            ) : weather ? (
+              <div className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-4">
+                  <div className="rounded-lg bg-white/70 p-3"><div className="text-xs text-muted-foreground">Température</div><div className="text-2xl font-bold">{weather.current?.temperature_2m ?? "—"}°C</div></div>
+                  <div className="rounded-lg bg-white/70 p-3"><div className="flex items-center gap-1 text-xs text-muted-foreground"><Droplets className="h-3.5 w-3.5" />Humidité</div><div className="text-2xl font-bold">{weather.current?.relative_humidity_2m ?? "—"}%</div></div>
+                  <div className="rounded-lg bg-white/70 p-3"><div className="text-xs text-muted-foreground">Ressentie</div><div className="text-2xl font-bold">{weather.current?.apparent_temperature ?? "—"}°C</div></div>
+                  <div className="rounded-lg bg-white/70 p-3"><div className="flex items-center gap-1 text-xs text-muted-foreground"><Wind className="h-3.5 w-3.5" />Vent</div><div className="text-2xl font-bold">{weather.current?.wind_speed_10m ?? "—"}<span className="text-sm font-normal"> km/h</span></div></div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-7">
+                  {weather.daily.map((day) => (
+                    <div key={day.date} className="rounded-lg border border-white/80 bg-white/60 p-2 text-center">
+                      <div className="text-xs font-semibold">{new Date(`${day.date}T12:00:00`).toLocaleDateString("fr-FR", { weekday: "short" })}</div>
+                      <div className="text-[11px] text-muted-foreground">{new Date(`${day.date}T12:00:00`).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })}</div>
+                      <div className="my-2 text-sm font-bold">{day.max ?? "—"}° / {day.min ?? "—"}°</div>
+                      <div className="flex items-center justify-center gap-1 text-xs text-sky-700"><Umbrella className="h-3 w-3" />{day.precipitationProbability ?? 0}%</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Tabs */}

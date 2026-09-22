@@ -55,6 +55,7 @@ import { canAssignMemberGrade, MEMBER_GRADE_LEVELS } from "../shared/memberProgr
 import { governanceRouter } from "./governance-router";
 import { stripeRouter } from "./stripe-router";
 import { parseMemberCsv } from "../shared/memberCsv";
+import { getWeatherForecast, NDJAMENA_WEATHER } from "./weather";
 
 // Note: Email procedures are now in email-router.ts and imported above
 
@@ -1941,6 +1942,13 @@ export const appRouter = router({
 
   // ============ PROJECTS ============
   projects: router({
+    weather: protectedProcedure
+      .input(z.object({
+        latitude: z.number().min(-90).max(90).default(NDJAMENA_WEATHER.latitude),
+        longitude: z.number().min(-180).max(180).default(NDJAMENA_WEATHER.longitude),
+        label: z.string().max(120).optional().default(NDJAMENA_WEATHER.label),
+      }))
+      .query(async ({ input }) => getWeatherForecast(input)),
     list: protectedProcedure
       .input(z.object({ limit: z.number().default(50), offset: z.number().default(0), status: z.string().optional() }))
       .query(async ({ input }) => {
