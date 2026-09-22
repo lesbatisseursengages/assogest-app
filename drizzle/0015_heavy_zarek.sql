@@ -1,0 +1,1 @@
+-- Fields already exist, no migration needed

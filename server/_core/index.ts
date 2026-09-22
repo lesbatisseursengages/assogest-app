@@ -4,10 +4,12 @@ import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
-import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { membershipRemindersHandler } from "../membership-reminders-handler";
+import { governanceRemindersHandler } from "../governance-reminders-handler";
+import { stripeWebhookHandler } from "../stripe-webhook";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -31,11 +33,16 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
+  // Stripe signature verification requires the raw request body before JSON parsing.
+  app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), stripeWebhookHandler);
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
-  registerStorageProxy(app);
+  // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+  // Platform-managed Heartbeat callbacks must be mounted before the Vite/static fallback.
+  app.post("/api/scheduled/membership-reminders", membershipRemindersHandler);
+  app.post("/api/scheduled/governance-assembly-reminders", governanceRemindersHandler);
   // tRPC API
   app.use(
     "/api/trpc",

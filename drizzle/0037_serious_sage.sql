@@ -1,0 +1,1 @@
+-- No schema changes were generated for the imported schema snapshot.

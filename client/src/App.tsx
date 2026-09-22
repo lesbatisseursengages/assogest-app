@@ -4,35 +4,184 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import DashboardLayout from "./components/DashboardLayout";
 import Home from "./pages/Home";
+import Documents from "./pages/Documents";
+import Categories from "./pages/Categories";
+import Members from "./pages/Members";
+import MemberDirectory from "./pages/MemberDirectory";
+import VolunteerPortal from "./pages/VolunteerPortal";
+import Activity from "./pages/Activity";
+import Archives from "./pages/Archives";
+import Finance from "./pages/Finance";
+import Pricing from "./pages/Pricing";
+import Offline from "./pages/Offline";
+import ModeSelector from "./pages/ModeSelector";
+import Settings from "./pages/Settings";
+import Campaigns from "./pages/Campaigns";
+import Adhesions from "./pages/Adhesions";
+import Events from "./pages/Events";
+import ProtectedUserManagement from "./pages/ProtectedUserManagement";
+import AdminPortal from "./pages/AdminPortal";
+import ForgotPassword from "./pages/ForgotPassword";
+import Login from "./pages/Login";
+import AuditHistory from "./pages/AuditHistory";
+import AdminRoles from "./pages/AdminRoles";
+import AdminPermissions from "./pages/AdminPermissions";
+import MemberPortal from "./pages/MemberPortal";
+import Notifications from "./pages/Notifications";
+import Governance from "./pages/Governance";
+import GovernanceDashboard from "./pages/GovernanceDashboard";
+import AdminAuditLogs from "./pages/AdminAuditLogs";
+import News from "./pages/News";
+import Announcements from "./pages/Announcements";
+import EmailComposer from "./pages/EmailComposer";
+import EmailTemplates from "./pages/EmailTemplates";
+import EmailHistory from "./pages/EmailHistory";
+import AdminSettings from "./pages/AdminSettings";
+import { CRMDashboard } from "./pages/CRMDashboard";
+import CRMContacts from "./pages/CRMContacts";
+import CRMActivities from "./pages/CRMActivities";
+import CRMReports from "./pages/CRMReports";
+import GlobalSettings from "./pages/GlobalSettings";
+import { AdminPasswordResets } from "./pages/AdminPasswordResets";
+import { Projects } from "./pages/Projects";
+import { ProjectDetail } from "./pages/ProjectDetail";
+import Dashboard from "./pages/Dashboard";
+import AdhesionsList from "./pages/AdhesionsList";
+import GroupesAntennes from "./pages/GroupesAntennes";
+import { Antennes } from "./pages/Antennes";
+import { AntenneDetail } from "./pages/AntenneDetail";
+import { usePasswordAuth } from "./hooks/usePasswordAuth";
+import { useState, useEffect } from "react";
 
-function Router() {
-  // make sure to consider if you need authentication for certain routes
+function OnlineRouter({ isAuthenticated, error, onLogin, onLogout, onForgotPassword }: any) {
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+
+  if (!isAuthenticated) {
+    if (showForgotPassword) {
+      return <ForgotPassword onBack={() => setShowForgotPassword(false)} />;
+    }
+    return <Login onLogin={onLogin} error={error} onForgotPassword={() => setShowForgotPassword(true)} />;
+  }
+
+  return (
+    <DashboardLayout onLogout={onLogout}>
+      <Switch>
+        <Route path="/dashboard" component={Dashboard} />
+        <Route path="/" component={Home} />
+        <Route path="/documents" component={Documents} />
+        <Route path="/categories" component={Categories} />
+        <Route path="/members" component={Members} />
+        <Route path="/member-directory" component={MemberDirectory} />
+        <Route path="/volunteers" component={VolunteerPortal} />
+        <Route path="/members/adhesions" component={Adhesions} />
+        <Route path="/adhesions-list" component={AdhesionsList} />
+        <Route path="/activity" component={Activity} />
+        <Route path="/archives" component={Archives} />
+        <Route path="/finance" component={Finance} />
+        <Route path="/pricing" component={Pricing} />
+        <Route path="/campaigns" component={Campaigns} />
+        <Route path="/adhesions" component={Adhesions} />
+        <Route path="/events" component={Events} />
+        <Route path="/users" component={ProtectedUserManagement} />
+        <Route path="/admin-portal" component={AdminPortal} />
+        <Route path="/announcements" component={Announcements} />
+        <Route path="/news" component={News} />
+        <Route path="/email-composer" component={EmailComposer} />
+        <Route path="/email-templates" component={EmailTemplates} />
+        <Route path="/email-history" component={EmailHistory} />
+        <Route path="/audit-history" component={AuditHistory} />
+        <Route path="/admin/roles" component={AdminRoles} />
+        <Route path="/admin/permissions" component={AdminPermissions} />
+        <Route path="/member-portal" component={MemberPortal} />
+        <Route path="/notifications" component={Notifications} />
+        <Route path="/governance/dashboard" component={GovernanceDashboard} />
+        <Route path="/governance" component={Governance} />
+        <Route path="/admin/audit-logs" component={AdminAuditLogs} />
+        <Route path="/admin/settings" component={AdminSettings} />
+        <Route path="/crm" component={CRMDashboard} />
+        <Route path="/crm/contacts" component={CRMContacts} />
+        <Route path="/crm/activities" component={CRMActivities} />
+        <Route path="/crm/reports" component={CRMReports} />
+        <Route path="/settings" component={Settings} />
+        <Route path="/global-settings" component={GlobalSettings} />
+        <Route path="/admin/password-resets" component={AdminPasswordResets} />
+        <Route path="/projects" component={Projects} />
+        <Route path="/projects/:id" component={ProjectDetail} />
+        <Route path="/groupes-antennes" component={GroupesAntennes} />
+        <Route path="/antennes" component={Antennes} />
+        <Route path="/antennes/:id" component={AntenneDetail} />
+        <Route path="/404" component={NotFound} />
+        <Route component={NotFound} />
+      </Switch>
+    </DashboardLayout>
+  );
+}
+
+function OfflineRouter() {
   return (
     <Switch>
-      <Route path={"/"} component={Home} />
-      <Route path={"/404"} component={NotFound} />
-      {/* Final fallback route */}
-      <Route component={NotFound} />
+      <Route path="*" component={() => <Offline />} />
     </Switch>
   );
 }
 
-// NOTE: About Theme
-// - First choose a default theme according to your design style (dark or light bg), than change color palette in index.css
-//   to keep consistent foreground/background color across components
-// - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
+function Router({ mode, onChangeMode, isAuthenticated, error, onLogin, onLogout, onForgotPassword }: any) {
+  if (mode === null) {
+    return (
+      <ModeSelector
+        onSelectMode={(selectedMode) => {
+          localStorage.setItem('appMode', selectedMode);
+          onChangeMode(selectedMode);
+        }}
+      />
+    );
+  }
+
+  if (mode === 'offline') {
+    return <OfflineRouter />;
+  }
+
+  return <OnlineRouter isAuthenticated={isAuthenticated} error={error} onLogin={onLogin} onLogout={onLogout} onForgotPassword={onForgotPassword} />;
+}
 
 function App() {
+  const [mode, setMode] = useState<'online' | 'offline' | null>(null);
+  const { isAuthenticated, error, login, logout } = usePasswordAuth();
+
+  useEffect(() => {
+    const savedMode = localStorage.getItem('appMode') as 'online' | 'offline' | null;
+    setMode(savedMode);
+  }, []);
+
+  const handleChangeMode = (newMode: 'online' | 'offline') => {
+    setMode(newMode);
+  };
+
+  const handleLogin = (username: string, password: string) => {
+    login(username, password);
+  };
+
+  const handleForgotPassword = () => {
+    // Naviguer vers la page de récupération de mot de passe
+    window.location.hash = '#/forgot-password';
+  };
+
   return (
     <ErrorBoundary>
-      <ThemeProvider
-        defaultTheme="light"
-        // switchable
-      >
+      <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster />
-          <Router />
+          <Router 
+            mode={mode} 
+            onChangeMode={handleChangeMode}
+            isAuthenticated={isAuthenticated}
+            error={error}
+            onLogin={handleLogin}
+            onLogout={logout}
+            onForgotPassword={handleForgotPassword}
+          />
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>
