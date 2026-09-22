@@ -34,6 +34,9 @@ async function startServer() {
   const app = express();
   const server = createServer(app);
   // Stripe signature verification requires the raw request body before JSON parsing.
+  app.get("/api/stripe/webhook", (_req, res) => {
+    res.status(200).json({ ok: true, message: "Webhook Stripe actif. Utilisez une requête POST signée par Stripe." });
+  });
   app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), stripeWebhookHandler);
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
