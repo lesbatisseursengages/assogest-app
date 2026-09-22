@@ -13,6 +13,7 @@ import { Link, useLocation } from "wouter";
 import { LoadingButtonContent, LoadingState } from "@/components/LoadingState";
 import { getErrorMessage } from "@/lib/uxFeedback";
 import { exportRowsToCSV, exportRowsToPDF, generateListExportFilename, type ExportColumn } from "@/lib/exportLists";
+import { ProjectLocationPicker } from "@/components/ProjectLocationPicker";
 
 export function Projects() {
   const [, setLocation] = useLocation();
@@ -21,6 +22,7 @@ export function Projects() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editingProjectId, setEditingProjectId] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -53,6 +55,16 @@ export function Projects() {
     },
   });
 
+  const updateMutation = trpc.projects.update.useMutation({
+    onSuccess: () => {
+      toast.success("Projet modifié avec succès");
+      setEditingProjectId(null);
+      setIsCreateOpen(false);
+      refetch();
+    },
+    onError: (error) => toast.error(getErrorMessage(error, "Erreur lors de la modification du projet")),
+  });
+
   // Delete project mutation
   const deleteMutation = trpc.projects.delete.useMutation({
     onSuccess: () => {
@@ -64,13 +76,13 @@ export function Projects() {
     },
   });
 
-  const handleCreateProject = () => {
+  const handleSaveProject = () => {
     if (!formData.name || !formData.leaderId) {
       toast.error("Veuillez remplir les champs obligatoires");
       return;
     }
 
-    createMutation.mutate({
+    const payload = {
       name: formData.name,
       description: formData.description || undefined,
       status: formData.status as any,
@@ -79,7 +91,33 @@ export function Projects() {
       latitude: formData.latitude ? Number(formData.latitude) : undefined,
       longitude: formData.longitude ? Number(formData.longitude) : undefined,
       leaderId: parseInt(formData.leaderId),
+    };
+    if (editingProjectId) {
+      updateMutation.mutate({ id: editingProjectId, ...payload });
+    } else {
+      createMutation.mutate(payload);
+    }
+  };
+
+  const openCreateDialog = () => {
+    setEditingProjectId(null);
+    setFormData({ name: "", description: "", status: "planning", budget: "", leaderId: "", locationLabel: "N’Djamena, Tchad", latitude: "12.1348", longitude: "15.0557" });
+    setIsCreateOpen(true);
+  };
+
+  const openEditDialog = (project: any) => {
+    setEditingProjectId(project.id);
+    setFormData({
+      name: project.name || "",
+      description: project.description || "",
+      status: project.status || "planning",
+      budget: project.budget || "",
+      leaderId: String(project.leaderId || ""),
+      locationLabel: project.locationLabel || "",
+      latitude: project.latitude == null ? "12.1348" : String(project.latitude),
+      longitude: project.longitude == null ? "15.0557" : String(project.longitude),
     });
+    setIsCreateOpen(true);
   };
 
   const getStatusBadge = (status: string) => {
@@ -152,14 +190,14 @@ export function Projects() {
         </div>
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogTrigger asChild>
-            <Button className="gap-2">
+            <Button className="gap-2" onClick={openCreateDialog}>
               <Plus className="w-4 h-4" />
               Nouveau Projet
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Créer un nouveau projet</DialogTitle>
+              <DialogTitle>{editingProjectId ? "Modifier le projet" : "Créer un nouveau projet"}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
@@ -235,10 +273,14 @@ export function Projects() {
                     <Input id="longitude" type="number" step="0.000001" min="-180" max="180" placeholder="15.0557" value={formData.longitude} onChange={(e) => setFormData({ ...formData, longitude: e.target.value })} />
                   </div>
                 </div>
+                <ProjectLocationPicker
+                  value={{ latitude: Number(formData.latitude) || 12.1348, longitude: Number(formData.longitude) || 15.0557 }}
+                  onChange={(coordinates) => setFormData({ ...formData, latitude: coordinates.latitude.toFixed(6), longitude: coordinates.longitude.toFixed(6) })}
+                />
               </div>
-              <Button onClick={handleCreateProject} disabled={createMutation.isPending} className="w-full">
-                <LoadingButtonContent loading={createMutation.isPending} loadingLabel="Création…">
-                  Créer le projet
+              <Button onClick={handleSaveProject} disabled={createMutation.isPending || updateMutation.isPending} className="w-full">
+                <LoadingButtonContent loading={createMutation.isPending || updateMutation.isPending} loadingLabel={editingProjectId ? "Modification…" : "Création…"}>
+                  {editingProjectId ? "Enregistrer les modifications" : "Créer le projet"}
                 </LoadingButtonContent>
               </Button>
             </div>
@@ -341,6 +383,9 @@ export function Projects() {
                       Voir
                     </Button>
                   </Link>
+                  <Button size="sm" variant="outline" onClick={() => openEditDialog(project)} aria-label="Modifier le projet">
+                    <Edit2 className="w-4 h-4" />
+                  </Button>
                   <Button
                     size="sm"
                     variant="outline"
