@@ -1969,6 +1969,9 @@ export const appRouter = router({
         startDate: z.date().optional(),
         endDate: z.date().optional(),
         budget: z.string().optional(),
+        locationLabel: z.string().trim().max(255).optional(),
+        latitude: z.number().min(-90).max(90).optional(),
+        longitude: z.number().min(-180).max(180).optional(),
         leaderId: z.number(),
       }))
       .mutation(async ({ input, ctx }) => {
@@ -1976,6 +1979,8 @@ export const appRouter = router({
           ...input,
           startDate: input.startDate ? input.startDate.toISOString() : undefined,
           endDate: input.endDate ? input.endDate.toISOString() : undefined,
+          latitude: input.latitude === undefined ? undefined : input.latitude.toFixed(7),
+          longitude: input.longitude === undefined ? undefined : input.longitude.toFixed(7),
           createdBy: ctx.user?.id || 0,
         } as any);
 
@@ -2000,6 +2005,9 @@ export const appRouter = router({
         startDate: z.date().optional(),
         endDate: z.date().optional(),
         budget: z.string().optional(),
+        locationLabel: z.string().trim().max(255).optional(),
+        latitude: z.number().min(-90).max(90).optional(),
+        longitude: z.number().min(-180).max(180).optional(),
         leaderId: z.number().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
@@ -2008,6 +2016,8 @@ export const appRouter = router({
           ...data,
           startDate: data.startDate ? data.startDate.toISOString() : undefined,
           endDate: data.endDate ? data.endDate.toISOString() : undefined,
+          latitude: data.latitude === undefined ? undefined : data.latitude.toFixed(7),
+          longitude: data.longitude === undefined ? undefined : data.longitude.toFixed(7),
         };
         const project = await updateProject(id, convertedData as any);
 

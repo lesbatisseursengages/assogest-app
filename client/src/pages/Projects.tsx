@@ -27,6 +27,9 @@ export function Projects() {
     status: "planning",
     budget: "",
     leaderId: "",
+    locationLabel: "N’Djamena, Tchad",
+    latitude: "12.1348",
+    longitude: "15.0557",
   });
   const [isExporting, setIsExporting] = useState<"csv" | "pdf" | null>(null);
 
@@ -41,7 +44,7 @@ export function Projects() {
   const createMutation = trpc.projects.create.useMutation({
     onSuccess: () => {
       toast.success("Projet créé avec succès");
-      setFormData({ name: "", description: "", status: "planning", budget: "", leaderId: "" });
+      setFormData({ name: "", description: "", status: "planning", budget: "", leaderId: "", locationLabel: "N’Djamena, Tchad", latitude: "12.1348", longitude: "15.0557" });
       setIsCreateOpen(false);
       refetch();
     },
@@ -72,6 +75,9 @@ export function Projects() {
       description: formData.description || undefined,
       status: formData.status as any,
       budget: formData.budget || undefined,
+      locationLabel: formData.locationLabel.trim() || undefined,
+      latitude: formData.latitude ? Number(formData.latitude) : undefined,
+      longitude: formData.longitude ? Number(formData.longitude) : undefined,
       leaderId: parseInt(formData.leaderId),
     });
   };
@@ -99,6 +105,9 @@ export function Projects() {
     { header: "Chef de projet", value: (project) => project.leaderId || "" },
     { header: "Début", value: (project) => project.startDate ? new Date(project.startDate).toLocaleDateString("fr-FR") : "" },
     { header: "Fin", value: (project) => project.endDate ? new Date(project.endDate).toLocaleDateString("fr-FR") : "" },
+    { header: "Localisation", value: (project) => project.locationLabel || "" },
+    { header: "Latitude", value: (project) => project.latitude || "" },
+    { header: "Longitude", value: (project) => project.longitude || "" },
   ];
 
   const handleExport = async (format: "csv" | "pdf") => {
@@ -205,6 +214,28 @@ export function Projects() {
                   onChange={(e) => setFormData({ ...formData, leaderId: e.target.value })}
                 />
               </div>
+              <div className="space-y-2 rounded-lg border border-sky-200 bg-sky-50/60 p-3">
+                <div>
+                  <Label htmlFor="locationLabel">Zone d’intervention</Label>
+                  <p className="mt-1 text-xs text-muted-foreground">Ces coordonnées serviront à afficher la météo locale du projet.</p>
+                </div>
+                <Input
+                  id="locationLabel"
+                  placeholder="Ex. N’Djamena, Tchad"
+                  value={formData.locationLabel}
+                  onChange={(e) => setFormData({ ...formData, locationLabel: e.target.value })}
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="latitude">Latitude</Label>
+                    <Input id="latitude" type="number" step="0.000001" min="-90" max="90" placeholder="12.1348" value={formData.latitude} onChange={(e) => setFormData({ ...formData, latitude: e.target.value })} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="longitude">Longitude</Label>
+                    <Input id="longitude" type="number" step="0.000001" min="-180" max="180" placeholder="15.0557" value={formData.longitude} onChange={(e) => setFormData({ ...formData, longitude: e.target.value })} />
+                  </div>
+                </div>
+              </div>
               <Button onClick={handleCreateProject} disabled={createMutation.isPending} className="w-full">
                 <LoadingButtonContent loading={createMutation.isPending} loadingLabel="Création…">
                   Créer le projet
@@ -295,6 +326,12 @@ export function Projects() {
                   <div className="text-sm">
                     <span className="text-muted-foreground">Début: </span>
                     <span>{new Date(project.startDate).toLocaleDateString("fr-FR")}</span>
+                  </div>
+                )}
+                {(project.locationLabel || project.latitude !== null) && (
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Météo: </span>
+                    <span>{project.locationLabel || `${project.latitude}, ${project.longitude}`}</span>
                   </div>
                 )}
                 <div className="flex gap-2 pt-2">

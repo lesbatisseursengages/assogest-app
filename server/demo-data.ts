@@ -56,9 +56,9 @@ const membersData = [
 ] as const;
 
 const projectsData = [
-  { name: `${DEMO_LABEL} Résilience face aux inondations`, description: `${DEMO_LABEL} Distribution de kits d'urgence, sensibilisation et appui aux familles vulnérables de Walia pendant la saison des pluies.`, status: "in-progress" as const, startDate: daysAgo(75), endDate: daysAgo(-35), budget: "18500000", leaderMemberId: "DEMO-2026-004" },
-  { name: `${DEMO_LABEL} Centre de formation de Farcha`, description: `${DEMO_LABEL} Mise en place d'un espace de formation courte en couture, maintenance solaire et gestion de micro-activité pour 60 jeunes.`, status: "planning" as const, startDate: daysAgo(-20), endDate: daysAgo(-210), budget: "32750000", leaderMemberId: "DEMO-2026-003" },
-  { name: `${DEMO_LABEL} Aide sociale Ramadan 2026`, description: `${DEMO_LABEL} Accompagnement alimentaire et social de 120 ménages à faibles revenus dans trois quartiers de N'Djamena.`, status: "completed" as const, startDate: daysAgo(205), endDate: daysAgo(145), budget: "9600000", leaderMemberId: "DEMO-2026-001" },
+  { name: `${DEMO_LABEL} Résilience face aux inondations`, description: `${DEMO_LABEL} Distribution de kits d'urgence, sensibilisation et appui aux familles vulnérables de Walia pendant la saison des pluies.`, status: "in-progress" as const, startDate: daysAgo(75), endDate: daysAgo(-35), budget: "18500000", leaderMemberId: "DEMO-2026-004", locationLabel: "Walia, N’Djamena", latitude: "12.1048", longitude: "15.0846" },
+  { name: `${DEMO_LABEL} Centre de formation de Farcha`, description: `${DEMO_LABEL} Mise en place d'un espace de formation courte en couture, maintenance solaire et gestion de micro-activité pour 60 jeunes.`, status: "planning" as const, startDate: daysAgo(-20), endDate: daysAgo(-210), budget: "32750000", leaderMemberId: "DEMO-2026-003", locationLabel: "Farcha, N’Djamena", latitude: "12.1516", longitude: "15.0066" },
+  { name: `${DEMO_LABEL} Aide sociale Ramadan 2026`, description: `${DEMO_LABEL} Accompagnement alimentaire et social de 120 ménages à faibles revenus dans trois quartiers de N'Djamena.`, status: "completed" as const, startDate: daysAgo(205), endDate: daysAgo(145), budget: "9600000", leaderMemberId: "DEMO-2026-001", locationLabel: "Moundou, Tchad", latitude: "8.5667", longitude: "16.0833" },
 ] as const;
 
 const documentsData = [
@@ -234,7 +234,7 @@ export async function generateDemoData(userId: number) {
       const project = projectsData[projectIndex];
       const leaderId = memberIds.get(project.leaderMemberId);
       if (!leaderId) continue;
-      await tx.insert(projects).values({ name: project.name, description: project.description, status: project.status, startDate: project.startDate, endDate: project.endDate, budget: project.budget, leaderId, createdBy: userId, createdAt: daysAgo(70), updatedAt: daysAgo(1) });
+      await tx.insert(projects).values({ name: project.name, description: project.description, status: project.status, startDate: project.startDate, endDate: project.endDate, budget: project.budget, locationLabel: project.locationLabel, latitude: project.latitude, longitude: project.longitude, leaderId, createdBy: userId, createdAt: daysAgo(70), updatedAt: daysAgo(1) });
       const rows = await tx.select({ id: projects.id }).from(projects).where(eq(projects.name, project.name)).limit(1);
       const projectId = rows[0]?.id as number | undefined;
       if (projectId) {

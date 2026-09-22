@@ -45,7 +45,11 @@ export function ProjectDetail() {
   // Fetch budget items
   const { data: budgetItems } = trpc.projects.getBudgetItems.useQuery({ projectId });
   const { data: report } = trpc.projects.report.useQuery({ projectId });
-  const weatherInput = useMemo(() => ({ latitude: 12.1348, longitude: 15.0557, label: "N’Djamena, Tchad" }), []);
+  const weatherInput = useMemo(() => ({
+    latitude: Number(project?.latitude) || 12.1348,
+    longitude: Number(project?.longitude) || 15.0557,
+    label: project?.locationLabel || "N’Djamena, Tchad",
+  }), [project?.latitude, project?.longitude, project?.locationLabel]);
   const { data: weather, isLoading: weatherLoading, error: weatherError } = trpc.projects.weather.useQuery(weatherInput, {
     staleTime: 15 * 60 * 1000,
     refetchOnWindowFocus: false,
@@ -206,6 +210,7 @@ export function ProjectDetail() {
           <div>
             <h1 className="text-3xl font-bold">{project.name}</h1>
             <p className="text-muted-foreground mt-1">{project.description}</p>
+            <p className="mt-2 text-xs text-muted-foreground">Localisation météo : {project.locationLabel || "N’Djamena, Tchad"} ({Number(project.latitude) || 12.1348}, {Number(project.longitude) || 15.0557})</p>
           </div>
           <Badge className={getStatusColor(project.status)}>{project.status}</Badge>
         </div>
