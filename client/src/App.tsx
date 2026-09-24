@@ -159,8 +159,8 @@ function App() {
     setMode(newMode);
   };
 
-  const handleLogin = (username: string, password: string) => {
-    login(username, password);
+  const handleLogin = (username: string, password: string, turnstileToken: string) => {
+    return login(username, password, turnstileToken);
   };
 
   const handleForgotPassword = () => {

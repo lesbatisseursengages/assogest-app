@@ -14,6 +14,7 @@ import { LoadingButtonContent, LoadingState } from "@/components/LoadingState";
 import { getErrorMessage } from "@/lib/uxFeedback";
 import { exportRowsToCSV, exportRowsToPDF, generateListExportFilename, type ExportColumn } from "@/lib/exportLists";
 import { ProjectLocationPicker } from "@/components/ProjectLocationPicker";
+import { TurnstileField } from "@/components/TurnstileField";
 
 export function Projects() {
   const [, setLocation] = useLocation();
@@ -34,6 +35,8 @@ export function Projects() {
     longitude: "15.0557",
   });
   const [isExporting, setIsExporting] = useState<"csv" | "pdf" | null>(null);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileResetSignal, setTurnstileResetSignal] = useState(0);
 
   // Fetch projects
   const { data: projects, isLoading, refetch } = trpc.projects.list.useQuery({
@@ -47,6 +50,8 @@ export function Projects() {
     onSuccess: () => {
       toast.success("Projet créé avec succès");
       setFormData({ name: "", description: "", status: "planning", budget: "", leaderId: "", locationLabel: "N’Djamena, Tchad", latitude: "12.1348", longitude: "15.0557" });
+      setTurnstileToken(null);
+      setTurnstileResetSignal((value) => value + 1);
       setIsCreateOpen(false);
       refetch();
     },
@@ -59,6 +64,8 @@ export function Projects() {
     onSuccess: () => {
       toast.success("Projet modifié avec succès");
       setEditingProjectId(null);
+      setTurnstileToken(null);
+      setTurnstileResetSignal((value) => value + 1);
       setIsCreateOpen(false);
       refetch();
     },
@@ -91,6 +98,7 @@ export function Projects() {
       latitude: formData.latitude ? Number(formData.latitude) : undefined,
       longitude: formData.longitude ? Number(formData.longitude) : undefined,
       leaderId: parseInt(formData.leaderId),
+      turnstileToken: turnstileToken ?? "",
     };
     if (editingProjectId) {
       updateMutation.mutate({ id: editingProjectId, ...payload });
@@ -101,12 +109,16 @@ export function Projects() {
 
   const openCreateDialog = () => {
     setEditingProjectId(null);
+    setTurnstileToken(null);
+    setTurnstileResetSignal((value) => value + 1);
     setFormData({ name: "", description: "", status: "planning", budget: "", leaderId: "", locationLabel: "N’Djamena, Tchad", latitude: "12.1348", longitude: "15.0557" });
     setIsCreateOpen(true);
   };
 
   const openEditDialog = (project: any) => {
     setEditingProjectId(project.id);
+    setTurnstileToken(null);
+    setTurnstileResetSignal((value) => value + 1);
     setFormData({
       name: project.name || "",
       description: project.description || "",
@@ -278,7 +290,8 @@ export function Projects() {
                   onChange={(coordinates) => setFormData({ ...formData, latitude: coordinates.latitude.toFixed(6), longitude: coordinates.longitude.toFixed(6) })}
                 />
               </div>
-              <Button onClick={handleSaveProject} disabled={createMutation.isPending || updateMutation.isPending} className="w-full">
+              <TurnstileField onToken={setTurnstileToken} resetSignal={turnstileResetSignal} />
+              <Button onClick={handleSaveProject} disabled={createMutation.isPending || updateMutation.isPending || !turnstileToken} className="w-full">
                 <LoadingButtonContent loading={createMutation.isPending || updateMutation.isPending} loadingLabel={editingProjectId ? "Modification…" : "Création…"}>
                   {editingProjectId ? "Enregistrer les modifications" : "Créer le projet"}
                 </LoadingButtonContent>

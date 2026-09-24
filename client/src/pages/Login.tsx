@@ -4,9 +4,10 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertCircle, Lock, Mail, Sparkles } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { TurnstileField } from "@/components/TurnstileField";
 
 interface LoginProps {
-  onLogin: (email: string, password: string) => void | Promise<unknown>;
+  onLogin: (email: string, password: string, turnstileToken: string) => void | Promise<unknown>;
   error?: string | null;
   onForgotPassword?: () => void;
 }
@@ -15,6 +16,8 @@ export default function Login({ onLogin, error, onForgotPassword }: LoginProps) 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileResetSignal, setTurnstileResetSignal] = useState(0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,7 +26,11 @@ export default function Login({ onLogin, error, onForgotPassword }: LoginProps) 
     // Simuler un délai réseau
     await new Promise(resolve => setTimeout(resolve, 300));
     
-    await onLogin(email, password);
+    const result = await onLogin(email, password, turnstileToken ?? "");
+    if (result === false) {
+      setTurnstileToken(null);
+      setTurnstileResetSignal((value) => value + 1);
+    }
     setIsLoading(false);
   };
 
@@ -120,10 +127,15 @@ export default function Login({ onLogin, error, onForgotPassword }: LoginProps) 
                 </div>
               </div>
 
+              <TurnstileField
+                onToken={setTurnstileToken}
+                resetSignal={turnstileResetSignal}
+              />
+
               <Button
                 type="submit"
                 className="button-interactive w-full h-11 rounded-xl bg-primary text-primary-foreground font-semibold shadow-[0_14px_26px_-18px_var(--primary)] hover:bg-primary/90"
-                disabled={isLoading || !email || !password}
+                disabled={isLoading || !email || !password || !turnstileToken}
                 size="lg"
               >
                 {isLoading ? (

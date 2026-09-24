@@ -9,6 +9,16 @@ import { getLoginUrl } from "./const";
 import { RoleProvider } from "./contexts/RoleContext";
 import { CurrencyProvider } from "./contexts/CurrencyContext";
 import "./index.css";
+import * as Sentry from "@sentry/react";
+
+const browserDsn = import.meta.env.VITE_SENTRY_DSN as string | undefined;
+if (browserDsn) {
+  Sentry.init({
+    dsn: browserDsn,
+    environment: import.meta.env.MODE,
+    tracesSampleRate: 0.1,
+  });
+}
 
 const queryClient = new QueryClient();
 

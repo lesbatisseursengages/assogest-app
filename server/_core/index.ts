@@ -10,6 +10,18 @@ import { serveStatic, setupVite } from "./vite";
 import { membershipRemindersHandler } from "../membership-reminders-handler";
 import { governanceRemindersHandler } from "../governance-reminders-handler";
 import { stripeWebhookHandler } from "../stripe-webhook";
+import { captureServerException, flushSentry, initializeSentry } from "../sentry";
+
+initializeSentry();
+
+process.on("uncaughtException", (error) => {
+  captureServerException(error);
+  void flushSentry().finally(() => process.exit(1));
+});
+
+process.on("unhandledRejection", (reason) => {
+  captureServerException(reason);
+});
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {

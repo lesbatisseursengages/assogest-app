@@ -56,6 +56,7 @@ import { governanceRouter } from "./governance-router";
 import { stripeRouter } from "./stripe-router";
 import { parseMemberCsv } from "../shared/memberCsv";
 import { getWeatherForecast, NDJAMENA_WEATHER } from "./weather";
+import { verifyTurnstileToken } from "./turnstile";
 
 // Note: Email procedures are now in email-router.ts and imported above
 
@@ -78,8 +79,9 @@ export const appRouter = router({
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     localLogin: publicProcedure
-      .input(z.object({ email: z.string().email(), password: z.string().min(1) }))
+      .input(z.object({ email: z.string().email(), password: z.string().min(1), turnstileToken: z.string().min(1) }))
       .mutation(async ({ input, ctx }) => {
+        await verifyTurnstileToken(input.turnstileToken, ctx.req.ip);
         const normalizedEmail = input.email.trim().toLowerCase();
         const db = await getDb();
         const configuredUsers = db
@@ -1973,14 +1975,17 @@ export const appRouter = router({
         latitude: z.number().min(-90).max(90).optional(),
         longitude: z.number().min(-180).max(180).optional(),
         leaderId: z.number(),
+        turnstileToken: z.string().min(1),
       }))
       .mutation(async ({ input, ctx }) => {
+        const { turnstileToken, ...projectInput } = input;
+        await verifyTurnstileToken(turnstileToken, ctx.req.ip);
         const project = await createProject({
-          ...input,
-          startDate: input.startDate ? input.startDate.toISOString() : undefined,
-          endDate: input.endDate ? input.endDate.toISOString() : undefined,
-          latitude: input.latitude === undefined ? undefined : input.latitude.toFixed(7),
-          longitude: input.longitude === undefined ? undefined : input.longitude.toFixed(7),
+          ...projectInput,
+          startDate: projectInput.startDate ? projectInput.startDate.toISOString() : undefined,
+          endDate: projectInput.endDate ? projectInput.endDate.toISOString() : undefined,
+          latitude: projectInput.latitude === undefined ? undefined : projectInput.latitude.toFixed(7),
+          longitude: projectInput.longitude === undefined ? undefined : projectInput.longitude.toFixed(7),
           createdBy: ctx.user?.id || 0,
         } as any);
 
@@ -2009,9 +2014,11 @@ export const appRouter = router({
         latitude: z.number().min(-90).max(90).optional(),
         longitude: z.number().min(-180).max(180).optional(),
         leaderId: z.number().optional(),
+        turnstileToken: z.string().min(1),
       }))
       .mutation(async ({ input, ctx }) => {
-        const { id, ...data } = input;
+        const { id, turnstileToken, ...data } = input;
+        await verifyTurnstileToken(turnstileToken, ctx.req.ip);
         const convertedData = {
           ...data,
           startDate: data.startDate ? data.startDate.toISOString() : undefined,

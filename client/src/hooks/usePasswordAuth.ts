@@ -25,14 +25,18 @@ export function usePasswordAuth() {
     setIsLoading(false);
   }, [meQuery.data, meQuery.isLoading]);
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string, turnstileToken: string) => {
     setError(null);
     if (!email || !password) {
       setError("Veuillez entrer votre email et votre mot de passe");
       return false;
     }
+    if (!turnstileToken) {
+      setError("Veuillez valider la protection anti-robot");
+      return false;
+    }
     try {
-      const result = await localLoginMutation.mutateAsync({ email, password });
+      const result = await localLoginMutation.mutateAsync({ email, password, turnstileToken });
       const user = { ...result.user, email, isActive: true };
       sessionStorage.setItem(SESSION_KEY, "server-session");
       sessionStorage.setItem(USER_EMAIL_KEY, email);
