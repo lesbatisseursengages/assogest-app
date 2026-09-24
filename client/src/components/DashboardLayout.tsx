@@ -61,6 +61,7 @@ import { useAuth as useAuthHook } from "@/_core/hooks/useAuth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ContextualModuleNav } from "@/components/ContextualModuleNav";
 import { GlobalCommandPalette } from "@/components/GlobalCommandPalette";
+import { AssistantWidget } from "@/components/AssistantWidget";
 
 export type MenuItem = {
   icon?: any;
@@ -465,6 +466,7 @@ function DashboardLayoutContent({
           </main>
         </div>
       </SidebarInset>
+      <AssistantWidget />
     </>
   );
 }

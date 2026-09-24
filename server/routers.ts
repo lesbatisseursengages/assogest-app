@@ -57,6 +57,7 @@ import { stripeRouter } from "./stripe-router";
 import { parseMemberCsv } from "../shared/memberCsv";
 import { getWeatherForecast, NDJAMENA_WEATHER } from "./weather";
 import { verifyTurnstileToken } from "./turnstile";
+import { assistantRouter } from "./assistant-router";
 
 // Note: Email procedures are now in email-router.ts and imported above
 
@@ -70,6 +71,7 @@ export const appRouter = router({
   groupes: groupesRouter,
   governance: governanceRouter,
   stripe: stripeRouter,
+  assistant: assistantRouter,
   demoData: router({
     summary: protectedProcedure.query(async () => getDemoDataSummary()),
     generate: protectedProcedure.mutation(async ({ ctx }) => generateDemoData(ctx.user.id)),
