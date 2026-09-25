@@ -79,6 +79,7 @@ export default function Documents() {
   const [selectedDocument, setSelectedDocument] = useState<any>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [newNote, setNewNote] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -319,6 +320,15 @@ export default function Documents() {
     if (fileType.includes("image")) return <FileImage className="h-5 w-5 text-purple-600" />;
     if (fileType.includes("pdf")) return <FileIcon className="h-5 w-5 text-red-600" />;
     return <FileText className="h-5 w-5" />;
+  };
+
+  const getPreviewType = (doc: any): "pdf" | "image" | null => {
+    if (!doc?.fileUrl) return null;
+    const fileType = String(doc.fileType || "").toLowerCase();
+    const fileName = String(doc.fileName || doc.fileUrl || "").toLowerCase().split("?")[0];
+    if (fileType === "application/pdf" || fileName.endsWith(".pdf")) return "pdf";
+    if (fileType.startsWith("image/") || /\.(png|jpe?g|gif|webp|svg)$/.test(fileName)) return "image";
+    return null;
   };
 
   const getCategoryName = (categoryId: number) => {
@@ -787,6 +797,16 @@ export default function Documents() {
                       </p>
                     </div>
                     <div className="flex gap-2">
+                      {getPreviewType(selectedDocument) && (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={() => setIsPreviewOpen(true)}
+                        >
+                          <Eye className="mr-1 h-4 w-4" />
+                          Visualiser
+                        </Button>
+                      )}
                       <Button size="sm" variant="outline" onClick={() => handleDownload(selectedDocument)}>
                         <Download className="h-4 w-4" />
                       </Button>
@@ -824,6 +844,36 @@ export default function Documents() {
                   onChange={handleFileUpload}
                 />
               </div>
+
+              {getPreviewType(selectedDocument) && (
+                <div className="space-y-3">
+                  <Separator />
+                  <div className="flex items-center justify-between gap-3">
+                    <h4 className="text-sm font-medium">Aperçu du fichier</h4>
+                    <Button size="sm" variant="ghost" onClick={() => setIsPreviewOpen((open) => !open)}>
+                      <Eye className="mr-2 h-4 w-4" />
+                      {isPreviewOpen ? "Masquer" : "Afficher"}
+                    </Button>
+                  </div>
+                  {isPreviewOpen && (
+                    <div className="overflow-hidden rounded-lg border bg-muted/30">
+                      {getPreviewType(selectedDocument) === "image" ? (
+                        <img
+                          src={selectedDocument.fileUrl}
+                          alt={`Aperçu de ${selectedDocument.fileName || selectedDocument.title}`}
+                          className="mx-auto max-h-[55vh] w-auto max-w-full object-contain p-2"
+                        />
+                      ) : (
+                        <iframe
+                          src={`${selectedDocument.fileUrl}#toolbar=1&view=FitH`}
+                          title={`Aperçu PDF de ${selectedDocument.fileName || selectedDocument.title}`}
+                          className="h-[55vh] w-full bg-white"
+                        />
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <Separator />
 
