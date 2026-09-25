@@ -24,7 +24,7 @@ import {
   getDb, upsertUser,
   createProject, getProject, listProjects, updateProject, deleteProject,
   addProjectMember, getProjectMembers, removeProjectMember,
-  createProjectTask, getProjectTasks, updateProjectTask, deleteProjectTask,
+  createProjectTask, getProjectTasks, getProjectTasksForProjects, updateProjectTask, deleteProjectTask,
   createProjectMilestone, getProjectMilestones, updateProjectMilestone, deleteProjectMilestone,
   createProjectUpdate, getProjectUpdates,
   createProjectTaskComment, getProjectTaskComments, deleteProjectTaskComment, getProjectReport,
@@ -2042,6 +2042,32 @@ export const appRouter = router({
         return project;
       }),
 
+    updateTimeline: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        startDate: z.date(),
+        endDate: z.date(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (input.endDate < input.startDate) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "La date de fin doit être postérieure à la date de début." });
+        }
+        const project = await updateProject(input.id, {
+          startDate: input.startDate.toISOString(),
+          endDate: input.endDate.toISOString(),
+        } as any);
+        await logAudit({
+          userId: ctx.user?.id,
+          action: "UPDATE",
+          entityType: "project",
+          entityId: input.id,
+          entityName: project?.name || "Unknown",
+          description: `Période du projet modifiée par le diagramme de Gantt: ${project?.name}`,
+          status: "success",
+        });
+        return project;
+      }),
+
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
@@ -2088,11 +2114,15 @@ export const appRouter = router({
         status: z.enum(["todo", "in-progress", "in-review", "completed"]).default("todo"),
         priority: z.enum(["low", "medium", "high", "critical"]).default("medium"),
         assignedTo: z.number().optional(),
+        startDate: z.date().optional(),
+        endDate: z.date().optional(),
         dueDate: z.date().optional(),
       }))
       .mutation(async ({ input }) => {
         const convertedInput = {
           ...input,
+          startDate: input.startDate ? input.startDate.toISOString() : undefined,
+          endDate: input.endDate ? input.endDate.toISOString() : undefined,
           dueDate: input.dueDate ? input.dueDate.toISOString() : undefined,
         };
         return await createProjectTask(convertedInput as any);
@@ -2104,6 +2134,10 @@ export const appRouter = router({
         return await getProjectTasks(input.projectId);
       }),
 
+    getTasksForGantt: protectedProcedure
+      .input(z.object({ projectIds: z.array(z.number()).max(100) }))
+      .query(async ({ input }) => getProjectTasksForProjects(input.projectIds)),
+
     updateTask: protectedProcedure
       .input(z.object({
         id: z.number(),
@@ -2112,15 +2146,36 @@ export const appRouter = router({
         status: z.enum(["todo", "in-progress", "in-review", "completed"]).optional(),
         priority: z.enum(["low", "medium", "high", "critical"]).optional(),
         assignedTo: z.number().optional(),
+        startDate: z.date().optional(),
+        endDate: z.date().optional(),
         dueDate: z.date().optional(),
       }))
       .mutation(async ({ input }) => {
         const { id, ...data } = input;
         const convertedData = {
           ...data,
+          startDate: data.startDate ? data.startDate.toISOString() : undefined,
+          endDate: data.endDate ? data.endDate.toISOString() : undefined,
           dueDate: data.dueDate ? data.dueDate.toISOString() : undefined,
         };
         return await updateProjectTask(id, convertedData as any);
+      }),
+
+    updateTaskTimeline: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        startDate: z.date(),
+        endDate: z.date(),
+      }))
+      .mutation(async ({ input }) => {
+        if (input.endDate < input.startDate) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "La date de fin doit être postérieure à la date de début." });
+        }
+        return await updateProjectTask(input.id, {
+          startDate: input.startDate.toISOString(),
+          endDate: input.endDate.toISOString(),
+          dueDate: input.endDate.toISOString(),
+        } as any);
       }),
 
     deleteTask: protectedProcedure

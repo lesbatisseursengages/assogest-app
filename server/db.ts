@@ -1107,6 +1107,13 @@ export async function getProjectTasks(projectId: number) {
   return await db.select().from(projectTasks).where(eq(projectTasks.projectId, projectId)).orderBy(desc(projectTasks.createdAt));
 }
 
+export async function getProjectTasksForProjects(projectIds: number[]) {
+  const db = await getDb();
+  if (!db || projectIds.length === 0) return [];
+
+  return await db.select().from(projectTasks).where(inArray(projectTasks.projectId, projectIds)).orderBy(asc(projectTasks.startDate), asc(projectTasks.dueDate), desc(projectTasks.createdAt));
+}
+
 export async function updateProjectTask(id: number, data: Partial<InsertProjectTask>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");

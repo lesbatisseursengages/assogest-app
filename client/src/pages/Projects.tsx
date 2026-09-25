@@ -382,7 +382,7 @@ export function Projects() {
         </div>
       </div>
 
-      <ProjectGantt projects={filteredProjects} />
+      <ProjectGantt projects={filteredProjects} onRefresh={refetch} />
 
       {/* Projects Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

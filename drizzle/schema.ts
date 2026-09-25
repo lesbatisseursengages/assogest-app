@@ -714,6 +714,8 @@ export const projectTasks = mysqlTable("project_tasks", {
 	status: mysqlEnum(['todo','in-progress','in-review','completed']).default('todo').notNull(),
 	priority: mysqlEnum(['low','medium','high','critical']).default('medium').notNull(),
 	assignedTo: int(),
+	startDate: timestamp({ mode: 'string' }),
+	endDate: timestamp({ mode: 'string' }),
 	dueDate: timestamp({ mode: 'string' }),
 	createdAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
