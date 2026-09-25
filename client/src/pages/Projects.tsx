@@ -14,6 +14,7 @@ import { LoadingButtonContent, LoadingState } from "@/components/LoadingState";
 import { getErrorMessage } from "@/lib/uxFeedback";
 import { exportRowsToCSV, exportRowsToPDF, generateListExportFilename, type ExportColumn } from "@/lib/exportLists";
 import { ProjectLocationPicker } from "@/components/ProjectLocationPicker";
+import { ProjectGantt } from "@/components/ProjectGantt";
 import { TurnstileField } from "@/components/TurnstileField";
 
 export function Projects() {
@@ -28,6 +29,8 @@ export function Projects() {
     name: "",
     description: "",
     status: "planning",
+    startDate: "",
+    endDate: "",
     budget: "",
     leaderId: "",
     locationLabel: "N’Djamena, Tchad",
@@ -49,7 +52,7 @@ export function Projects() {
   const createMutation = trpc.projects.create.useMutation({
     onSuccess: () => {
       toast.success("Projet créé avec succès");
-      setFormData({ name: "", description: "", status: "planning", budget: "", leaderId: "", locationLabel: "N’Djamena, Tchad", latitude: "12.1348", longitude: "15.0557" });
+      setFormData({ name: "", description: "", status: "planning", startDate: "", endDate: "", budget: "", leaderId: "", locationLabel: "N’Djamena, Tchad", latitude: "12.1348", longitude: "15.0557" });
       setTurnstileToken(null);
       setTurnstileResetSignal((value) => value + 1);
       setIsCreateOpen(false);
@@ -93,6 +96,8 @@ export function Projects() {
       name: formData.name,
       description: formData.description || undefined,
       status: formData.status as any,
+      startDate: formData.startDate ? new Date(`${formData.startDate}T00:00:00`) : undefined,
+      endDate: formData.endDate ? new Date(`${formData.endDate}T00:00:00`) : undefined,
       budget: formData.budget || undefined,
       locationLabel: formData.locationLabel.trim() || undefined,
       latitude: formData.latitude ? Number(formData.latitude) : undefined,
@@ -111,7 +116,7 @@ export function Projects() {
     setEditingProjectId(null);
     setTurnstileToken(null);
     setTurnstileResetSignal((value) => value + 1);
-    setFormData({ name: "", description: "", status: "planning", budget: "", leaderId: "", locationLabel: "N’Djamena, Tchad", latitude: "12.1348", longitude: "15.0557" });
+    setFormData({ name: "", description: "", status: "planning", startDate: "", endDate: "", budget: "", leaderId: "", locationLabel: "N’Djamena, Tchad", latitude: "12.1348", longitude: "15.0557" });
     setIsCreateOpen(true);
   };
 
@@ -123,6 +128,8 @@ export function Projects() {
       name: project.name || "",
       description: project.description || "",
       status: project.status || "planning",
+      startDate: project.startDate ? new Date(project.startDate).toISOString().slice(0, 10) : "",
+      endDate: project.endDate ? new Date(project.endDate).toISOString().slice(0, 10) : "",
       budget: project.budget || "",
       leaderId: String(project.leaderId || ""),
       locationLabel: project.locationLabel || "",
@@ -254,6 +261,27 @@ export function Projects() {
                   onChange={(e) => setFormData({ ...formData, budget: e.target.value })}
                 />
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="startDate">Date de début</Label>
+                  <Input
+                    id="startDate"
+                    type="date"
+                    value={formData.startDate}
+                    onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="endDate">Date de fin</Label>
+                  <Input
+                    id="endDate"
+                    type="date"
+                    min={formData.startDate || undefined}
+                    value={formData.endDate}
+                    onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                  />
+                </div>
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="leaderId">Chef de projet *</Label>
                 <Input
@@ -353,6 +381,8 @@ export function Projects() {
           </Select>
         </div>
       </div>
+
+      <ProjectGantt projects={filteredProjects} />
 
       {/* Projects Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
