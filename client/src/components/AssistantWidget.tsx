@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { Bot, MessageCircle, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -12,14 +13,15 @@ const welcomeMessage: Message = {
 };
 
 const suggestedPrompts = [
-  "Comment créer un nouveau membre ?",
-  "Comment enregistrer un don ?",
-  "Où trouver les documents urgents ?",
-  "Comment utiliser la météo d’un projet ?",
+  "Guide-moi pas à pas pour créer un membre",
+  "Comment enregistrer un don et générer son reçu ?",
+  "Comment importer mes vrais membres depuis un CSV ?",
+  "Comment ajouter une tâche et déplacer sa barre dans le Gantt ?",
 ];
 
 export function AssistantWidget() {
   const [open, setOpen] = useState(false);
+  const [location] = useLocation();
   const [messages, setMessages] = useState<Message[]>([welcomeMessage]);
   const askMutation = trpc.assistant.ask.useMutation();
 
@@ -27,7 +29,7 @@ export function AssistantWidget() {
     const nextMessages: Message[] = [...messages, { role: "user", content }];
     setMessages(nextMessages);
     askMutation.mutate(
-      { messages: nextMessages.filter((message) => message.role !== "system").map(({ role, content: messageContent }) => ({ role: role as "user" | "assistant", content: messageContent })) },
+      { messages: nextMessages.filter((message) => message.role !== "system").map(({ role, content: messageContent }) => ({ role: role as "user" | "assistant", content: messageContent })), pagePath: location },
       {
         onSuccess: (answer) => {
           setMessages((current) => [...current, { role: "assistant", content: answer }]);
