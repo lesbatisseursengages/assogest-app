@@ -22,6 +22,7 @@ const suggestedPrompts = [
 export function AssistantWidget() {
   const [open, setOpen] = useState(false);
   const [location] = useLocation();
+  const [, setLocation] = useLocation();
   const [messages, setMessages] = useState<Message[]>([welcomeMessage]);
   const askMutation = trpc.assistant.ask.useMutation();
 
@@ -31,8 +32,8 @@ export function AssistantWidget() {
     askMutation.mutate(
       { messages: nextMessages.filter((message) => message.role !== "system").map(({ role, content: messageContent }) => ({ role: role as "user" | "assistant", content: messageContent })), pagePath: location },
       {
-        onSuccess: (answer) => {
-          setMessages((current) => [...current, { role: "assistant", content: answer }]);
+        onSuccess: (reply) => {
+          setMessages((current) => [...current, { role: "assistant", content: reply.answer, actions: reply.actions, liveData: reply.liveData }]);
         },
         onError: (error) => {
           toast.error("L’assistant est momentanément indisponible");
@@ -79,6 +80,7 @@ export function AssistantWidget() {
           placeholder="Posez une question sur l’utilisation de l’application…"
           emptyStateMessage="Posez une question sur votre espace associatif"
           suggestedPrompts={suggestedPrompts}
+          onAction={(path) => { setOpen(false); setLocation(path); }}
           className="rounded-none border-0 shadow-none"
         />
       </DialogContent>

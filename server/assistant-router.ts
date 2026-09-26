@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { invokeLLM } from "./_core/llm";
 import { protectedProcedure, router } from "./_core/trpc";
+import { getAllMembers, getDons, getDepenses, getGlobalDashboardSummary, listCrmContacts, listProjects } from "./db";
 
 const assistantMessageSchema = z.object({
   role: z.enum(["user", "assistant"]),
@@ -12,6 +13,49 @@ const assistantInputSchema = z.object({
   messages: z.array(assistantMessageSchema).min(1).max(20),
   pagePath: z.string().trim().max(200).optional(),
 });
+
+const assistantActionSchema = z.object({
+  label: z.string().min(1).max(80),
+  path: z.string().min(1).max(120),
+  description: z.string().max(160).optional(),
+});
+
+const assistantResponseSchema = {
+  type: "object",
+  properties: {
+    answer: { type: "string", description: "Réponse précise en français, avec les chiffres réels fournis dans le contexte." },
+    actions: { type: "array", items: { type: "object", properties: { label: { type: "string" }, path: { type: "string" }, description: { type: "string" } }, required: ["label", "path"], additionalProperties: false } },
+  },
+  required: ["answer", "actions"],
+  additionalProperties: false,
+} as const;
+
+const ALLOWED_ACTION_PATHS = new Set([
+  "/", "/dashboard", "/members", "/members/adhesions", "/adhesions-list", "/member-directory", "/volunteers", "/finance", "/pricing",
+  "/documents", "/categories", "/archives", "/projects", "/events", "/campaigns", "/crm", "/crm/contacts", "/crm/activities", "/crm/reports",
+  "/antennes", "/groupes-antennes", "/governance/dashboard", "/announcements", "/news", "/email-composer", "/email-templates", "/email-history",
+  "/notifications", "/activity", "/audit-history", "/settings", "/global-settings", "/users", "/admin/roles", "/admin/permissions", "/admin/audit-logs", "/admin/password-resets",
+]);
+
+function compact(value: unknown, limit = 24000) {
+  const text = JSON.stringify(value, (_key, item) => item instanceof Date ? item.toISOString() : item);
+  return text.length > limit ? `${text.slice(0, limit)}…` : text;
+}
+
+async function loadLiveApplicationContext() {
+  const [summary, members, contacts, projects, dons, depenses] = await Promise.all([
+    getGlobalDashboardSummary(), getAllMembers(), listCrmContacts(), listProjects(50, 0), getDons(), getDepenses(),
+  ]);
+  return {
+    generatedAt: summary.generatedAt,
+    dashboard: summary,
+    members: members.slice(0, 100).map(({ id, firstName, lastName, email, phone, role, function: memberFunction, status, memberId, membershipCategory }) => ({ id, firstName, lastName, email, phone, role, function: memberFunction, status, memberId, membershipCategory })),
+    contacts: contacts.slice(0, 100).map(({ id, firstName, lastName, email, phone, company, position, city, segment, status }) => ({ id, firstName, lastName, email, phone, company, position, city, segment, status })),
+    projects: projects.slice(0, 50).map((project: any) => ({ id: project.id, name: project.name, status: project.status, startDate: project.startDate, endDate: project.endDate, budget: project.budget, locationLabel: project.locationLabel, leaderId: project.leaderId })),
+    donations: dons.slice(0, 100).map(({ id, donateur, montant, currency, date, description, email }) => ({ id, donateur, montant, currency, date, description, email })),
+    expenses: depenses.slice(0, 100).map(({ id, description, montant, currency, categorie, date, notes }) => ({ id, description, montant, currency, categorie, date, notes })),
+  };
+}
 
 /**
  * Source de vérité fonctionnelle de l’assistant. Elle décrit uniquement les
@@ -110,21 +154,43 @@ export const assistantRouter = router({
         : "L’utilisateur connecté n’est pas administrateur : ne lui promets pas l’accès aux écrans CRM, rôles, permissions ou imports administratifs.";
       const pageContext = input.pagePath ? `Écran actuellement ouvert : ${input.pagePath}. Oriente prioritairement vers cet écran ou explique le chemin depuis celui-ci.` : "Écran actuel inconnu.";
       try {
+        const liveContext = await loadLiveApplicationContext();
         const response = await invokeLLM({
           messages: [
-            { role: "system", content: `${APPLICATION_MANUAL}\nCONTEXTE DE SESSION :\n- ${roleContext}\n- ${pageContext}` },
+            { role: "system", content: `${APPLICATION_MANUAL}\nCONTEXTE DE SESSION :\n- ${roleContext}\n- ${pageContext}\n\nDONNÉES RÉELLES LUES À L’INSTANT (source de vérité, ne les invente pas) :\n${compact(liveContext)}\n\nFORMAT OBLIGATOIRE : retourne uniquement un objet JSON avec "answer" et "actions". Dans answer, réponds à la question en utilisant les données réelles si elles sont pertinentes. Dans actions, propose au maximum 3 boutons vers les chemins autorisés, uniquement si utiles. Ne mets jamais de lien Markdown dans answer. Si aucune action n’est utile, retourne actions: [].` },
             ...input.messages.slice(-12),
           ],
+          response_format: {
+            type: "json_schema",
+            json_schema: { name: "assistant_navigation_response", strict: true, schema: assistantResponseSchema },
+          },
         });
         const content = response.choices[0]?.message?.content;
-        if (typeof content === "string" && content.trim()) return content.trim();
-        if (Array.isArray(content)) {
-          const text = content
-            .filter((part): part is { type: "text"; text: string } => part.type === "text")
-            .map((part) => part.text)
-            .join("\n")
-            .trim();
-          if (text) return text;
+        const rawText = typeof content === "string" ? content.trim() : Array.isArray(content)
+          ? content.filter((part): part is { type: "text"; text: string } => part.type === "text").map((part) => part.text).join("\n").trim()
+          : "";
+        if (rawText) {
+          const parsed = JSON.parse(rawText) as { answer?: string; actions?: unknown[] };
+          const actions = z.array(assistantActionSchema).safeParse(parsed.actions ?? []);
+          const adminOnlyPaths = new Set(["/crm", "/crm/contacts", "/crm/activities", "/crm/reports", "/users", "/admin/roles", "/admin/permissions", "/admin/audit-logs", "/admin/password-resets", "/global-settings"]);
+          return {
+            answer: parsed.answer?.trim() || "Je n’ai pas pu formuler une réponse exploitable.",
+            actions: actions.success ? actions.data.filter((action) => ALLOWED_ACTION_PATHS.has(action.path) && (ctx.user.role === "admin" || !adminOnlyPaths.has(action.path))).slice(0, 3) : [],
+            liveData: {
+              generatedAt: liveContext.generatedAt,
+              dashboard: {
+                membersActive: liveContext.dashboard.members.active,
+                membersTotal: liveContext.dashboard.members.total,
+                totalDons: liveContext.dashboard.finance.totalDons,
+                totalDepenses: liveContext.dashboard.finance.totalDepenses,
+                balance: liveContext.dashboard.finance.balance,
+                projectsTotal: liveContext.dashboard.projects.total,
+                projectsCompleted: liveContext.dashboard.projects.completed,
+                projectsInProgress: liveContext.dashboard.projects.inProgress,
+                documentsUrgent: liveContext.dashboard.activity.urgentTasks?.length ?? 0,
+              },
+            },
+          };
         }
         throw new Error("Réponse IA vide");
       } catch (error) {

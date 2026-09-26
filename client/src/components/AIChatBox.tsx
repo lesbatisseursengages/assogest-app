@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { Loader2, Send, User, Sparkles } from "lucide-react";
+import { ArrowRight, Loader2, Send, User, Sparkles } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Streamdown } from "streamdown";
 
@@ -12,6 +12,8 @@ import { Streamdown } from "streamdown";
 export type Message = {
   role: "system" | "user" | "assistant";
   content: string;
+  actions?: { label: string; path: string; description?: string }[];
+  liveData?: { generatedAt: string; dashboard: { membersActive: number; membersTotal: number; totalDons: number; totalDepenses: number; balance: number; projectsTotal: number; projectsCompleted: number; projectsInProgress: number; documentsUrgent: number } };
 };
 
 export type AIChatBoxProps = {
@@ -57,6 +59,7 @@ export type AIChatBoxProps = {
    * Click to send directly
    */
   suggestedPrompts?: string[];
+  onAction?: (path: string) => void;
 };
 
 /**
@@ -119,6 +122,7 @@ export function AIChatBox({
   height = "600px",
   emptyStateMessage = "Start a conversation with AI",
   suggestedPrompts,
+  onAction,
 }: AIChatBoxProps) {
   const [input, setInput] = useState("");
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -263,6 +267,24 @@ export function AIChatBox({
                       {message.role === "assistant" ? (
                         <div className="prose prose-sm dark:prose-invert max-w-none">
                           <Streamdown>{message.content}</Streamdown>
+                          {message.liveData && (
+                            <div className="mt-3 grid grid-cols-2 gap-2 rounded-md border bg-background/70 p-2 text-xs sm:grid-cols-4">
+                              <div><span className="text-muted-foreground">Membres actifs</span><strong className="block">{message.liveData.dashboard.membersActive}/{message.liveData.dashboard.membersTotal}</strong></div>
+                              <div><span className="text-muted-foreground">Dons</span><strong className="block">{message.liveData.dashboard.totalDons.toLocaleString("fr-FR")} €</strong></div>
+                              <div><span className="text-muted-foreground">Projets</span><strong className="block">{message.liveData.dashboard.projectsCompleted}/{message.liveData.dashboard.projectsTotal}</strong></div>
+                              <div><span className="text-muted-foreground">Urgences</span><strong className="block">{message.liveData.dashboard.documentsUrgent}</strong></div>
+                              <p className="col-span-2 text-[10px] text-muted-foreground sm:col-span-4">Données actualisées le {new Date(message.liveData.generatedAt).toLocaleString("fr-FR")}</p>
+                            </div>
+                          )}
+                          {message.actions?.length ? (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {message.actions.map((action) => (
+                                <Button key={`${action.path}-${action.label}`} type="button" size="sm" variant="outline" onClick={() => onAction?.(action.path)} title={action.description} disabled={!onAction}>
+                                  {action.label}<ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                                </Button>
+                              ))}
+                            </div>
+                          ) : null}
                         </div>
                       ) : (
                         <p className="whitespace-pre-wrap text-sm">
