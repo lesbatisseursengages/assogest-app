@@ -25,6 +25,7 @@ import {
   createProject, getProject, listProjects, updateProject, deleteProject,
   addProjectMember, getProjectMembers, removeProjectMember,
   createProjectTask, getProjectTasks, getProjectTasksForProjects, updateProjectTask, deleteProjectTask,
+  createCrmContact, listCrmContacts,
   createProjectMilestone, getProjectMilestones, updateProjectMilestone, deleteProjectMilestone,
   createProjectUpdate, getProjectUpdates,
   createProjectTaskComment, getProjectTaskComments, deleteProjectTaskComment, getProjectReport,
@@ -58,6 +59,7 @@ import { parseMemberCsv } from "../shared/memberCsv";
 import { getWeatherForecast, NDJAMENA_WEATHER } from "./weather";
 import { verifyTurnstileToken } from "./turnstile";
 import { assistantRouter } from "./assistant-router";
+import { parseAssociationCsv } from "../shared/associationCsv";
 
 // Note: Email procedures are now in email-router.ts and imported above
 
@@ -76,6 +78,67 @@ export const appRouter = router({
     summary: protectedProcedure.query(async () => getDemoDataSummary()),
     generate: protectedProcedure.mutation(async ({ ctx }) => generateDemoData(ctx.user.id)),
     reset: protectedProcedure.mutation(async () => resetDemoData()),
+  }),
+
+  dataImport: router({
+    preview: protectedProcedure
+      .input(z.object({ entity: z.enum(["members", "contacts", "donations", "projects"]), csv: z.string().min(1).max(2_000_000) }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Seul un administrateur peut importer des données." });
+        const parsed = parseAssociationCsv(input.csv, input.entity);
+        return { entity: input.entity, totalRows: parsed.totalRows, validRows: parsed.rows.length, issues: parsed.issues, sample: parsed.sample };
+      }),
+    import: protectedProcedure
+      .input(z.object({
+        entity: z.enum(["members", "contacts", "donations", "projects"]),
+        csv: z.string().min(1).max(2_000_000),
+        replaceDemoData: z.boolean().default(false),
+        confirmation: z.literal("REMPLACER").optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Seul un administrateur peut importer des données." });
+        if (input.replaceDemoData && input.confirmation !== "REMPLACER") throw new TRPCError({ code: "BAD_REQUEST", message: "Confirmez le remplacement des données de démonstration." });
+        const parsed = parseAssociationCsv(input.csv, input.entity);
+        if (parsed.issues.length > 0) throw new TRPCError({ code: "BAD_REQUEST", message: `Import impossible : ${parsed.issues.slice(0, 3).map((issue) => `ligne ${issue.row} — ${issue.message}`).join(" | ")}` });
+        if (parsed.rows.length === 0) throw new TRPCError({ code: "BAD_REQUEST", message: "Aucune ligne valide à importer." });
+        if (input.replaceDemoData) await resetDemoData();
+
+        let imported = 0;
+        const skipped: { row: number; message: string }[] = [];
+        if (input.entity === "members") {
+          const existing = await getAllMembers();
+          const ids = new Set(existing.map((member) => member.memberId).filter(Boolean));
+          const emails = new Set(existing.map((member) => member.email?.toLowerCase()).filter(Boolean));
+          for (let index = 0; index < parsed.rows.length; index++) {
+            const row = parsed.rows[index] as any;
+            const memberId = row.memberID?.trim(); const email = row.email?.trim().toLowerCase();
+            if ((memberId && ids.has(memberId)) || (email && emails.has(email))) { skipped.push({ row: index + 2, message: "Identifiant ou email déjà utilisé" }); continue; }
+            const created = await createMember({ ...row, memberId: row.memberID });
+            await recordMemberStatus({ memberId: created.id as number, status: row.status ?? "active", reason: "Import CSV sécurisé", changedBy: ctx.user.id });
+            if (memberId) ids.add(memberId); if (email) emails.add(email); imported++;
+          }
+        } else if (input.entity === "contacts") {
+          const existing = await listCrmContacts(); const emails = new Set(existing.map((contact) => contact.email.toLowerCase()));
+          for (let index = 0; index < parsed.rows.length; index++) {
+            const row = parsed.rows[index] as any; const email = row.email.toLowerCase();
+            if (emails.has(email)) { skipped.push({ row: index + 2, message: "Email déjà utilisé" }); continue; }
+            await createCrmContact({ ...row, createdBy: ctx.user.id, status: row.status || "prospect" }); emails.add(email); imported++;
+          }
+        } else if (input.entity === "donations") {
+          for (const row of parsed.rows as any[]) {
+            await createDon({ ...row, montant: row.montant.replace(",", "."), date: row.date ? new Date(row.date).toISOString() : undefined } as any); imported++;
+          }
+        } else {
+          for (let index = 0; index < parsed.rows.length; index++) {
+            const row = parsed.rows[index] as any;
+            const leader = await getMemberById(Number(row.leaderId));
+            if (!leader) { skipped.push({ row: index + 2, message: "Responsable introuvable" }); continue; }
+            await createProject({ ...row, leaderId: Number(row.leaderId), createdBy: ctx.user.id, startDate: row.startDate ? new Date(row.startDate).toISOString() : undefined, endDate: row.endDate ? new Date(row.endDate).toISOString() : undefined, latitude: row.latitude || undefined, longitude: row.longitude || undefined } as any); imported++;
+          }
+        }
+        await logActivity({ userId: ctx.user.id, action: "import", entityType: input.entity, details: `${imported} ligne(s) importée(s) depuis un CSV${input.replaceDemoData ? " après remplacement des données démo" : ""}` });
+        return { imported, skipped, replacedDemoData: input.replaceDemoData };
+      }),
   }),
   
   auth: router({

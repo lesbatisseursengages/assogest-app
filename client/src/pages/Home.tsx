@@ -29,6 +29,7 @@ import { useLocation } from "wouter";
 import { RoleSelector } from "@/components/RoleSelector";
 import { useRole } from "@/hooks/useRole";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { CsvImportDialog } from "@/components/CsvImportDialog";
 import React from "react";
 
 const ORGANIZATION_INFO = {
@@ -43,9 +44,11 @@ export default function Home() {
   const [, setLocation] = useLocation();
   const { isAdmin } = useRole();
   const [mode, setMode] = React.useState<'online' | 'offline'>('online');
+  const { formatAmount } = useCurrency();
   const { data: stats, isLoading: statsLoading } = trpc.documents.stats.useQuery();
   const { data: categories, isLoading: categoriesLoading } = trpc.categories.list.useQuery();
   const { data: documents, isLoading: documentsLoading } = trpc.documents.list.useQuery({});
+  const { data: globalSummary, isLoading: summaryLoading } = trpc.dashboard.summary.useQuery();
 
   const recentDocs = documents?.slice(0, 5) || [];
   const urgentDocs = documents?.filter(d => d.priority === "urgent" && d.status !== "completed") || [];
@@ -145,6 +148,7 @@ export default function Home() {
           </div>
           
           <div className="flex flex-col sm:flex-row gap-3">
+            {isAdmin && <CsvImportDialog />}
             <Button 
               onClick={() => setLocation("/documents")} 
               className="button-interactive gap-2 bg-white/95 text-primary shadow-lg hover:bg-white h-12 px-6"
@@ -163,6 +167,21 @@ export default function Home() {
               Visiter le site
             </Button>
           </div>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <div className="flex items-end justify-between gap-3">
+          <div><h2 className="flex items-center gap-2 text-2xl font-bold tracking-tight"><TrendingUp className="h-6 w-6 text-primary" />Vue d’ensemble opérationnelle</h2><p className="mt-1 text-sm text-muted-foreground">Les indicateurs sont calculés à partir des données actuelles.</p></div>
+          <Button variant="ghost" size="sm" onClick={() => setLocation("/dashboard")}>Tableau complet <ArrowRight className="ml-2 h-4 w-4" /></Button>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {summaryLoading ? Array.from({ length: 4 }).map((_, index) => <Card key={index} className="h-32 animate-pulse bg-muted/50" />) : <>
+            <Card className="cursor-pointer border-primary/15 transition-colors hover:border-primary/40" onClick={() => setLocation("/finance")}><CardHeader className="pb-2"><CardDescription>Total des dons</CardDescription><CardTitle className="text-2xl">{formatAmount(Number(globalSummary?.finance.totalDons || 0))}</CardTitle></CardHeader><CardContent><p className="text-xs text-muted-foreground">Consulter les finances</p></CardContent></Card>
+            <Card className="cursor-pointer border-primary/15 transition-colors hover:border-primary/40" onClick={() => setLocation("/members")}><CardHeader className="pb-2"><CardDescription>Membres actifs</CardDescription><CardTitle className="text-2xl">{globalSummary?.members.active || 0}</CardTitle></CardHeader><CardContent><p className="text-xs text-muted-foreground">sur {globalSummary?.members.total || 0} membres</p></CardContent></Card>
+            <Card className="cursor-pointer border-primary/15 transition-colors hover:border-primary/40" onClick={() => setLocation("/projects")}><CardHeader className="pb-2"><CardDescription>Avancement global des projets</CardDescription><CardTitle className="text-2xl">{globalSummary?.projects.total ? Math.round(((Number(globalSummary.projects.completed) + Number(globalSummary.projects.inProgress) * 0.5) / Number(globalSummary.projects.total)) * 100) : 0}%</CardTitle></CardHeader><CardContent><div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${globalSummary?.projects.total ? Math.round(((Number(globalSummary.projects.completed) + Number(globalSummary.projects.inProgress) * 0.5) / Number(globalSummary.projects.total)) * 100) : 0}%` }} /></div><p className="mt-2 text-xs text-muted-foreground">{globalSummary?.projects.completed || 0} terminé(s), {globalSummary?.projects.inProgress || 0} en cours</p></CardContent></Card>
+            <Card className="cursor-pointer border-primary/15 transition-colors hover:border-primary/40" onClick={() => setLocation("/crm")}><CardHeader className="pb-2"><CardDescription>Activité récente</CardDescription><CardTitle className="text-2xl">{globalSummary?.activity.recent?.length || 0}</CardTitle></CardHeader><CardContent><p className="text-xs text-muted-foreground">interactions sur 7 jours</p></CardContent></Card>
+          </>}
         </div>
       </div>
 
