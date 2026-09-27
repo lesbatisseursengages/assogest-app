@@ -281,6 +281,13 @@
       "when": 1790332176848,
       "tag": "0039_worried_bromley",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "5",
+      "when": 1790501076000,
+      "tag": "0040_add_user_scopes",
+      "breakpoints": true
     }
   ]
 }
