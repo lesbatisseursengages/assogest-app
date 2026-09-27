@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { appRouter } from "./routers";
+import { PREVIEW_SESSION_COOKIE } from "./local-auth";
 import { COOKIE_NAME } from "../shared/const";
 import type { TrpcContext } from "./_core/context";
 
@@ -49,7 +50,7 @@ describe("auth.logout", () => {
     const result = await caller.auth.logout();
 
     expect(result).toEqual({ success: true });
-    expect(clearedCookies).toHaveLength(2);
+    expect(clearedCookies).toHaveLength(3);
     expect(clearedCookies[0]?.name).toBe(COOKIE_NAME);
     expect(clearedCookies[0]?.options).toMatchObject({
       maxAge: -1,
@@ -59,5 +60,6 @@ describe("auth.logout", () => {
       path: "/",
     });
     expect(clearedCookies[1]?.name).toBe("asso_local_session");
+    expect(clearedCookies[2]?.name).toBe(PREVIEW_SESSION_COOKIE);
   });
 });

@@ -1,8 +1,8 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
-import { createLocalSessionToken, LOCAL_SESSION_COOKIE } from "./local-auth";
+import { createLocalSessionToken, createPreviewSessionToken, LOCAL_SESSION_COOKIE, PREVIEW_SESSION_COOKIE } from "./local-auth";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { actorAdminProcedure, publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { emailRouter } from "./email-router";
 import { adminSettingsRouter } from "./admin-settings-router";
 import { crmRouter } from "./crm-router";
@@ -41,7 +41,7 @@ import { generateDemoData, getDemoDataSummary, resetDemoData } from "./demo-data
 import { roles, permissions, rolePermissions, userRoles, userScopes, auditLogs, emailTemplates, emailHistory, emailRecipients, members, adhesions, notificationSchedules, announcements, news, newsComments, projects, projectMembers, groupes, groupeMembers, antennes, appUsers } from "../drizzle/schema";
 import { buildMemberCardPayload, getMemberHistory, getMemberStatusHistory, memberStatusSchema, recordMemberHistory, recordMemberStatus } from "./member-lifecycle";
 import { createUserNotification, generateMembershipReminderNotifications, getOrCreateNotificationPreferences, listUserNotifications, markAllNotificationsRead, markNotificationRead, updateNotificationPreferences } from "./notification-center";
-import { and, eq, desc } from "drizzle-orm";
+import { and, eq, desc, sql } from "drizzle-orm";
 import { parse as parseCookieHeader } from "cookie";
 import { createHeartbeatJob } from "./_core/heartbeat";
 import { logAudit } from "./audit";
@@ -177,6 +177,31 @@ export const appRouter = router({
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       ctx.res.clearCookie(LOCAL_SESSION_COOKIE, { ...cookieOptions, maxAge: -1 });
+      ctx.res.clearCookie(PREVIEW_SESSION_COOKIE, { ...cookieOptions, maxAge: -1 });
+      return { success: true } as const;
+    }),
+  }),
+
+  preview: router({
+    status: protectedProcedure.query(({ ctx }) => ({
+      active: Boolean(ctx.isPreview),
+      actor: ctx.actorUser ? { id: ctx.actorUser.id, name: ctx.actorUser.name, email: ctx.actorUser.email } : null,
+      subject: ctx.user ? { id: ctx.user.id, name: ctx.user.name, email: ctx.user.email, role: ctx.user.role } : null,
+    })),
+    start: actorAdminProcedure
+      .input(z.object({ userId: z.number().int().positive() }))
+      .mutation(async ({ input, ctx }) => {
+        const target = await getUserById(input.userId);
+        if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "Utilisateur introuvable." });
+        if (target.role === "admin") throw new TRPCError({ code: "BAD_REQUEST", message: "Sélectionnez un utilisateur non administrateur pour l’aperçu." });
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie(PREVIEW_SESSION_COOKIE, createPreviewSessionToken(ctx.user.id, target.id), { ...cookieOptions, maxAge: 1000 * 60 * 60 });
+        await logAudit({ userId: ctx.user.id, action: "PREVIEW_START", entityType: "user", entityId: target.id, entityName: target.name ?? target.email ?? String(target.id), description: `Aperçu de l’interface avec les droits de l’utilisateur ${target.id}`, status: "success" });
+        return { success: true, target: { id: target.id, name: target.name, email: target.email, role: target.role } } as const;
+      }),
+    stop: actorAdminProcedure.mutation(({ ctx }) => {
+      const cookieOptions = getSessionCookieOptions(ctx.req);
+      ctx.res.clearCookie(PREVIEW_SESSION_COOKIE, { ...cookieOptions, maxAge: -1 });
       return { success: true } as const;
     }),
   }),
@@ -1794,6 +1819,31 @@ export const appRouter = router({
           return [];
         }
        }),
+
+    getSystemHealth: protectedProcedure.query(async ({ ctx }) => {
+      await assertPermission(ctx.user, "admin.audit.view");
+      const db = await getDb();
+      if (!db) return { overall: "critical" as const, checkedAt: new Date().toISOString(), database: { connected: false }, tables: [], migrations: { available: false, count: 0 } };
+      const requiredTables = ["users", "members", "documents", "projects", "campaigns", "user_scopes", "roles", "permissions", "role_permissions", "user_roles"];
+      try {
+        const tableResult: any = await db.execute(sql`SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()`);
+        const tableRows = Array.isArray(tableResult?.[0]) ? tableResult[0] : tableResult;
+        const existingTables = new Set((tableRows ?? []).map((row: any) => String(row.TABLE_NAME ?? row.table_name)));
+        const tables = requiredTables.map((name) => ({ name, present: existingTables.has(name) }));
+        let migrations = { available: false, count: 0 };
+        try {
+          const migrationResult: any = await db.execute(sql`SELECT COUNT(*) AS count FROM __drizzle_migrations`);
+          const migrationRows = Array.isArray(migrationResult?.[0]) ? migrationResult[0] : migrationResult;
+          migrations = { available: true, count: Number(migrationRows?.[0]?.count ?? 0) };
+        } catch {
+          // Some deployments do not expose Drizzle's internal journal table.
+        }
+        return { overall: tables.every((table) => table.present) ? "healthy" as const : "degraded" as const, checkedAt: new Date().toISOString(), database: { connected: true }, tables, migrations };
+      } catch (error) {
+        console.error("Failed to inspect system health:", error);
+        return { overall: "degraded" as const, checkedAt: new Date().toISOString(), database: { connected: true }, tables: [], migrations: { available: false, count: 0 } };
+      }
+    }),
   }),
 
   // ============ COMMUNICATION ============

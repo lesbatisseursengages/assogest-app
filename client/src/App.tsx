@@ -45,6 +45,7 @@ import CRMActivities from "./pages/CRMActivities";
 import CRMReports from "./pages/CRMReports";
 import GlobalSettings from "./pages/GlobalSettings";
 import { AdminPasswordResets } from "./pages/AdminPasswordResets";
+import AdminSystemHealth from "./pages/AdminSystemHealth";
 import { Projects } from "./pages/Projects";
 import { ProjectDetail } from "./pages/ProjectDetail";
 import Dashboard from "./pages/Dashboard";
@@ -107,6 +108,7 @@ function OnlineRouter({ isAuthenticated, error, onLogin, onLogout, onForgotPassw
         <Route path="/settings" component={Settings} />
         <Route path="/global-settings" component={GlobalSettings} />
         <Route path="/admin/password-resets" component={AdminPasswordResets} />
+        <Route path="/admin/system-health" component={AdminSystemHealth} />
         <Route path="/projects" component={Projects} />
         <Route path="/projects/:id" component={ProjectDetail} />
         <Route path="/groupes-antennes" component={GroupesAntennes} />

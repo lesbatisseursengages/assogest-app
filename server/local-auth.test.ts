@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createLocalSessionToken, verifyLocalSessionToken } from "./local-auth";
+import { createLocalSessionToken, createPreviewSessionToken, verifyLocalSessionToken, verifyPreviewSessionToken } from "./local-auth";
 
 describe("local authentication session", () => {
   it("creates and verifies a signed token", () => {
@@ -12,5 +12,12 @@ describe("local authentication session", () => {
     const [payload, signature] = token.split(".");
     expect(verifyLocalSessionToken(`${payload}.${signature}tampered`)).toBeNull();
     expect(verifyLocalSessionToken(undefined)).toBeNull();
+  });
+
+  it("signs preview sessions with actor and target identities", () => {
+    const token = createPreviewSessionToken(1, 2);
+    expect(verifyPreviewSessionToken(token)).toEqual({ actorId: 1, targetId: 2 });
+    const [payload, signature] = token.split(".");
+    expect(verifyPreviewSessionToken(`${payload}.${signature}tampered`)).toBeNull();
   });
 });

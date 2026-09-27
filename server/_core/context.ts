@@ -1,14 +1,16 @@
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
 import { users } from "../../drizzle/schema";
 import { sdk } from "./sdk";
-import { getUserByOpenId } from "../db";
-import { LOCAL_SESSION_COOKIE, verifyLocalSessionToken } from "../local-auth";
+import { getUserByOpenId, getUserById } from "../db";
+import { LOCAL_SESSION_COOKIE, PREVIEW_SESSION_COOKIE, verifyLocalSessionToken, verifyPreviewSessionToken } from "../local-auth";
 import { parse as parseCookieHeader } from "cookie";
 
 export type TrpcContext = {
   req: CreateExpressContextOptions["req"];
   res: CreateExpressContextOptions["res"];
   user: typeof users.$inferSelect | null;
+  actorUser?: typeof users.$inferSelect | null;
+  isPreview?: boolean;
 };
 
 export async function createContext(
@@ -31,9 +33,18 @@ export async function createContext(
     }
   }
 
+  const actorUser = user;
+  const preview = actorUser?.role === "admin" ? verifyPreviewSessionToken(cookies[PREVIEW_SESSION_COOKIE]) : null;
+  if (preview && preview.actorId === actorUser?.id) {
+    const targetUser = await getUserById(preview.targetId);
+    if (targetUser && targetUser.role !== "admin") user = targetUser;
+  }
+
   return {
     req: opts.req,
     res: opts.res,
     user,
+    actorUser,
+    isPreview: Boolean(preview && preview.actorId === actorUser?.id && user?.id === preview.targetId),
   };
 }

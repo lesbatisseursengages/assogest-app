@@ -17,6 +17,10 @@ const requireUser = t.middleware(async opts => {
     throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
   }
 
+  if (ctx.isPreview && opts.type === "mutation") {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Le mode aperçu est en lecture seule. Quittez-le pour modifier les données." });
+  }
+
   return next({
     ctx: {
       ...ctx,
@@ -41,5 +45,15 @@ export const adminProcedure = t.procedure.use(
         user: ctx.user,
       },
     });
+  }),
+);
+
+export const actorAdminProcedure = t.procedure.use(
+  t.middleware(async opts => {
+    const actor = opts.ctx.actorUser ?? opts.ctx.user;
+    if (!actor || actor.role !== "admin") {
+      throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
+    }
+    return opts.next({ ctx: { ...opts.ctx, user: actor } });
   }),
 );

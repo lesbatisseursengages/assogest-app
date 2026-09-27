@@ -38,6 +38,7 @@ import {
   Calendar,
   History,
   Shield,
+  Server,
   Eye,
   Mail,
   Newspaper,
@@ -62,6 +63,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ContextualModuleNav } from "@/components/ContextualModuleNav";
 import { GlobalCommandPalette } from "@/components/GlobalCommandPalette";
 import { AssistantWidget } from "@/components/AssistantWidget";
+import { trpc } from "@/lib/trpc";
 
 export type MenuItem = {
   icon?: any;
@@ -138,6 +140,7 @@ export const menuItems: MenuItem[] = [
     { icon: Users, label: "Utilisateurs", path: "/users", adminOnly: true },
     { icon: Eye, label: "Journaux d'Audit", path: "/admin/audit-logs", adminOnly: true },
     { icon: Shield, label: "Réinitialisations MDP", path: "/admin/password-resets", adminOnly: true },
+    { icon: Server, label: "État du système", path: "/admin/system-health", adminOnly: true },
   ]},
   
   // Activité et logs
@@ -229,6 +232,14 @@ function DashboardLayoutContent({
   onLogout,
 }: DashboardLayoutContentProps) {
   const { user, logout } = useAuthHook() as any;
+  const utils = trpc.useUtils();
+  const { data: preview } = trpc.preview.status.useQuery(undefined, { enabled: Boolean(user) });
+  const stopPreview = trpc.preview.stop.useMutation({
+    onSuccess: async () => {
+      await Promise.all([utils.auth.me.invalidate(), utils.preview.status.invalidate()]);
+      setLocation("/admin/permissions");
+    },
+  });
   const handleLogout = onLogout || logout;
   const [location, setLocation] = useLocation();
   const { state, toggleSidebar } = useSidebar();
@@ -456,6 +467,7 @@ function DashboardLayoutContent({
               <span>Plateforme associative</span>
             </div>
           </div>
+          {preview?.active ? <div className="flex items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-950 sm:px-6"><span><strong>Mode aperçu :</strong> vous voyez l’interface de {preview.subject?.name || preview.subject?.email || "cet utilisateur"}. Les modifications sont désactivées.</span><Button size="sm" variant="outline" onClick={() => stopPreview.mutate()} disabled={stopPreview.isPending}>{stopPreview.isPending ? "Sortie…" : "Quitter l’aperçu"}</Button></div> : null}
           <main className="flex-1 overflow-auto">
             <div className="app-page p-4 sm:p-6 lg:p-8">
               <div className="mb-6">
